@@ -8,6 +8,7 @@ compound.metadata <- load.from.taiga(data.name='compound-metadata-de37', data.ve
 
 # Iron-out the confusing ID's, Smiles, Drug Name's and Synonyms
 # Number of rows drops from 7692 to 7314
+# Still far from perfect, example: VENETOCLAX vs VENOTOCLAX
 compound.metadata <- compound.metadata %>% 
   dplyr::mutate(cm_ix = 1:n()) %>% 
   tidyr::separate_rows(referenced_datasets, sep = ";") %>% 
@@ -22,18 +23,24 @@ compound.metadata <- compound.metadata %>%
   dplyr::mutate(ix2 = dplyr::group_indices(., IDs)) %>%
   dplyr::mutate(ix3 = dplyr::group_indices(., SMILES)) %>%
   dplyr::mutate(ix3 = ifelse(SMILES == "", NA, ix3)) %>% 
+  dplyr::mutate(ix4 = dplyr::group_indices(., InChIKey)) %>%
+  dplyr::mutate(ix4 = ifelse(InChIKey == "", NA, ix4)) %>% 
   dplyr::group_by(cm_ix) %>% 
-  dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T)) %>% 
+  dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T)) %>% 
   dplyr::group_by(ix1) %>% 
-  dplyr::mutate(cm_ix = min(cm_ix, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T)) %>% 
+  dplyr::mutate(cm_ix = min(cm_ix, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T)) %>% 
   dplyr::group_by(ix2) %>% 
-  dplyr::mutate(ix1 = min(ix1, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix3 = min(ix3, na.rm = T)) %>% 
+  dplyr::mutate(ix1 = min(ix1, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T)) %>% 
   dplyr::ungroup() %>% 
   dplyr::mutate(ix3 = dplyr::group_indices(., cm_ix, ix3)) %>% 
   dplyr::group_by(ix3) %>% 
-  dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), cm_ix = min(cm_ix, na.rm = T)) %>% 
+  dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix4 = min(ix4, na.rm = T)) %>% 
   dplyr::ungroup() %>% 
-  dplyr::select(-ix1, -ix2, -ix3) %>% 
+  dplyr::mutate(ix4 = dplyr::group_indices(., cm_ix, ix4)) %>% 
+  dplyr::group_by(ix4) %>% 
+  dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), cm_ix = min(cm_ix, na.rm = T)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(-ix1, -ix2, -ix3, -ix4) %>% 
   dplyr::distinct() %>% 
   tidyr::separate_rows(MOA, sep = ";") %>% 
   tidyr::separate_rows(repurposing_target, sep = ";") %>% 
@@ -148,7 +155,85 @@ compound.metadata.expanded <- compound.metadata %>%
                 everything()) %>% 
   dplyr::distinct() 
 
+compound.metadata.expanded %>% View
 
+# cleaning up again - this is too ugly and error prone! 
+compound.metadata.expanded <- compound.metadata.expanded %>%   
+  dplyr::mutate(cm_ix = 1:n()) %>% 
+    tidyr::separate_rows(referenced_datasets, sep = ";") %>% 
+    tidyr::separate_rows(IDs, sep = ";") %>% 
+    tidyr::separate_rows(Synonyms, sep = ";") %>% 
+    tidyr::pivot_longer(cols = c("Drug.Name", "Synonyms"),
+                        names_to = "dummy", values_to = "Drug.Name") %>%
+    dplyr::select(-dummy) %>% 
+    dplyr::filter(Drug.Name != "", IDs != "", referenced_datasets != "") %>% 
+    dplyr::distinct() %>% 
+    dplyr::mutate(ix1 = dplyr::group_indices(., Drug.Name)) %>%
+    dplyr::mutate(ix2 = dplyr::group_indices(., IDs)) %>%
+    dplyr::mutate(ix3 = dplyr::group_indices(., SMILES)) %>%
+    dplyr::mutate(ix3 = ifelse(SMILES == "", NA, ix3)) %>% 
+    dplyr::mutate(ix4 = dplyr::group_indices(., InChIKey)) %>%
+    dplyr::mutate(ix4 = ifelse(InChIKey == "", NA, ix4)) %>% 
+    dplyr::mutate(ix5 = dplyr::group_indices(., `ChEMBL ID`)) %>%
+    dplyr::mutate(ix5 = ifelse(`ChEMBL ID` == "", NA, ix5)) %>% 
+    dplyr::group_by(cm_ix) %>% 
+    dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T), ix5 = min(ix5, na.rm = T)) %>% 
+    dplyr::group_by(ix1) %>% 
+    dplyr::mutate(cm_ix = min(cm_ix, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T), ix5 = min(ix5, na.rm = T)) %>% 
+    dplyr::group_by(ix2) %>% 
+    dplyr::mutate(ix1 = min(ix1, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T), ix5 = min(ix5, na.rm = T)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(ix3 = dplyr::group_indices(., cm_ix, ix3)) %>% 
+    dplyr::group_by(ix3) %>% 
+    dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix4 = min(ix4, na.rm = T), ix5 = min(ix5, na.rm = T)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(ix4 = dplyr::group_indices(., cm_ix, ix4)) %>% 
+    dplyr::group_by(ix4) %>% 
+    dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), cm_ix = min(cm_ix, na.rm = T), ix5 = min(ix5, na.rm = T)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(ix5 = dplyr::group_indices(., cm_ix, ix5)) %>% 
+    dplyr::group_by(ix5) %>% 
+    dplyr::mutate(ix1 = min(ix1, na.rm = T), ix2 = min(ix2, na.rm = T), ix3 = min(ix3, na.rm = T), ix4 = min(ix4, na.rm = T),  cm_ix = min(cm_ix, na.rm = T)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::select(-ix1, -ix2, -ix3, -ix4, -ix5) %>% 
+    dplyr::distinct() %>% 
+  dplyr::group_by(cm_ix) %>%
+  dplyr::mutate(Synonyms = paste0(sort(unique(Drug.Name)), collapse= ";"),
+                IDs = paste0(sort(unique(IDs)), collapse= ";"),
+                referenced_datasets = paste0(sort(unique(referenced_datasets)), collapse= ";"),
+                SMILES = paste0(sort(unique(SMILES[SMILES != ""])), collapse= ";"),
+                `ChEMBL ID` = paste0(sort(unique(`ChEMBL ID`[`ChEMBL ID` != ""])), collapse= ";"),
+                InChIKey = paste0(sort(unique(InChIKey[InChIKey != ""])), collapse= ";")) %>%
+  dplyr::top_n(1, Drug.Name)  %>% 
+  dplyr::ungroup() %>%
+  dplyr::distinct() %>% 
+  tidyr::separate_rows(MOA, sep = ";") %>% 
+  tidyr::separate_rows(repurposing_target, sep = ";") %>% 
+  tidyr::separate_rows(Indication, sep = ";") %>% 
+  tidyr::separate_rows(`Disease Area`, sep = ";") %>% 
+  tidyr::separate_rows(`Phase(RepHub)`, sep = ";") %>% 
+  tidyr::separate_rows(merge_issues, sep = ";") %>% 
+  tidyr::separate_rows(Type, sep = ";") %>% 
+  dplyr::group_by(cm_ix) %>% 
+  dplyr::mutate(MOA = paste0(sort(unique(MOA[MOA != ""])), collapse= ";"),
+                  repurposing_target = paste0(sort(unique(repurposing_target[repurposing_target != ""])), collapse= ";"),
+                  Indication = paste0(sort(unique(Indication[Indication != ""])), collapse= ";"),
+                  `Disease Area` = paste0(sort(unique(`Disease Area`[`Disease Area` != ""])), collapse= ";"),
+                  `Phase(RepHub)` = paste0(sort(unique(`Phase(RepHub)`[`Phase(RepHub)` != ""])), collapse= ";"),
+                  `Phase(ChEMBL)` = max(`Phase(ChEMBL)`, na.rm = T), 
+                  `Phase(ChEMBL)` = ifelse(is.finite(`Phase(ChEMBL)`), `Phase(ChEMBL)`, NA), 
+                  merge_issues = paste0(sort(unique(merge_issues[merge_issues != ""])), collapse= ";"),
+                  Type = paste0(sort(unique(Type[Type != ""])), collapse= ";")) %>%
+  dplyr::ungroup() %>% 
+  dplyr::select(-cm_ix) %>% 
+  dplyr::select(Drug.Name, Synonyms, `ChEMBL ID`, IDs, referenced_datasets, 
+                everything()) %>% 
+  dplyr::distinct() 
+
+
+    
+
+  
 
 compound.metadata.expanded %>% 
   write_csv("data/compound_metadata_expanded.csv")
